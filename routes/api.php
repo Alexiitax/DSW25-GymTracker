@@ -45,4 +45,18 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/my-routines', [RoutineController::class, 'store']); // POST /my-routines (Suscribir/Crear)
     Route::delete('/my-routines/{id}', [RoutineController::class, 'destroy']); // DELETE /my-routines/{id}
 
+    // Rutas para Ejercicios 
+    Route::post('/exercises', [ExerciseController::class, 'store']);
+    Route::put('/exercises/{id}', [ExerciseController::class, 'update']);
+    Route::put('/exercises/{id}', [ExerciseController::class, 'destroy']);
+
+    // Rutas para Rutinas
+    Route::post('/routines', [RoutineController::class, 'store']);
+    Route::post('/routines/{id}', [RoutineController::class, 'update']);
+    Route::post('/routines/{id}', [RoutineController::class, 'destroy']);
+
+    // Relación de ejercicios con rutinas.
+    Route::post('/routines/{id}/exercises', [RoutineController::class, 'addExercise']);
+    Route::post('/routines/{id}/exercises/{e_id}', [RoutineController::class, 'removeExercise']);
+
 });
