@@ -1,62 +1,49 @@
 <?php
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\RoutineController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\ExerciseController;
+use App\Http\Controllers\RoutineController;
+use Illuminate\Support\Facades\Route;
 
-// Ahora tengo en cuenta que los públicos van fuera del middleware y las token van dentro
+// Public routes
 
-// Autenticación
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
 
-// Categorías
 Route::get('/categories', [CategoryController::class, 'index']);
 Route::get('/categories/{id}', [CategoryController::class, 'show']);
-Route::get('/categories/{id}/exercises', [CategoryController::class, 'exercises']);
+Route::get('/categories/{id}/exercises', [CategoryController::class, 'getExercises']);
 
-// Ejercicios
 Route::get('/exercises', [ExerciseController::class, 'index']);
 Route::get('/exercises/{id}', [ExerciseController::class, 'show']);
 
-// Rutinas (General / Públicas)
 Route::get('/routines', [RoutineController::class, 'index_public']);
 Route::get('/routines/{id}', [RoutineController::class, 'show']);
 Route::get('/routines/{id}/exercises', [RoutineController::class, 'exercises_list']);
 
-Route::middleware('auth:sanctum')->group(function () {
-    
-    // el usuario y la sesión
-    Route::get('/user', function (Request $request) {
-        return $request->user();
-    });
-    Route::post('/logout', [AuthController::class, 'logout']);
+// Protected routes
 
-    // Gestión de Categorías (solo con Token)
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/logout', [AuthController::class, 'logout']);
+    Route::get('/user', [AuthController::class, 'user']);
+
+    // Category CRUD (protected)
     Route::post('/categories', [CategoryController::class, 'store']);
     Route::put('/categories/{id}', [CategoryController::class, 'update']);
     Route::delete('/categories/{id}', [CategoryController::class, 'destroy']);
 
-    // Mis Rutinas (personalizadas del usuario)
-    Route::get('/my-routines', [RoutineController::class, 'index']); // GET /my-routines
-    Route::post('/my-routines', [RoutineController::class, 'store']); // POST /my-routines (Suscribir/Crear)
-    Route::delete('/my-routines/{id}', [RoutineController::class, 'destroy']); // DELETE /my-routines/{id}
+    // My-routines (user's subscribed routines)
+    Route::get('/my-routines', [RoutineController::class, 'index']);
+    Route::post('/my-routines', [RoutineController::class, 'subscribe']); // Subscribe to existing routine
+    Route::delete('/my-routines/{id}', [RoutineController::class, 'destroy']);
+    
+    // Routine CRUD (protected)
+    Route::post('/routines', [RoutineController::class, 'store']); // Create new routine
+    Route::put('/routines/{id}', [RoutineController::class, 'update']);
+    Route::delete('/routines/{id}', [RoutineController::class, 'deleteFullRoutine']);
 
-    // Rutas para Ejercicios 
-    Route::post('/exercises', [ExerciseController::class, 'store']);
-    Route::put('/exercises/{id}', [ExerciseController::class, 'update']);
-    Route::put('/exercises/{id}', [ExerciseController::class, 'destroy']);
-
-    // Rutas para Rutinas
-    Route::post('/routines', [RoutineController::class, 'store']);
-    Route::post('/routines/{id}', [RoutineController::class, 'update']);
-    Route::post('/routines/{id}', [RoutineController::class, 'destroy']);
-
-    // Relación de ejercicios con rutinas.
+    // Routine exercise management (protected)
     Route::post('/routines/{id}/exercises', [RoutineController::class, 'addExercise']);
-    Route::post('/routines/{id}/exercises/{e_id}', [RoutineController::class, 'removeExercise']);
-
+    Route::delete('/routines/{id}/exercises/{e_id}', [RoutineController::class, 'removeExercise']);
 });

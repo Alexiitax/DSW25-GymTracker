@@ -4,41 +4,30 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreRoutineRequest;
 use App\Http\Resources\RoutineResource;
-use App\Models\Routine; // Para la validación, punto B
-use Illuminate\Http\Request; // Para el formato JSON, punto A
+use App\Models\Routine;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class RoutineController extends Controller
 {
-    // Este es el GET api/routines
+    // GET api/my-routines - Rutinas del usuario autenticado
     public function index()
     {
-
-        // obtenener el usuario autenticado
         $user = Auth::user();
-
-        // acceder a las rutinas a través de la relación.
-        // cargar también los ejercicios para una respuesta completa.
         $routines = $user->routines()->with('exercises')->get();
-
-        // A; uso el resource para devolver los datos con el formato
         return RoutineResource::collection($routines);
     }
 
-    // Este es el POST api/routines
-    // cambio request por storeroutinerequest
+    // POST api/routines - Crear nueva rutina
     public function store(StoreRoutineRequest $request)
     {
-        // Creo la rutina en la tabla 'routines'
         $routine = Routine::create([
-            'name' => $request->name, 
+            'name' => $request->name,
             'description' => $request->description,
         ]);
 
-        // Asocio la rutina al usuario autenticado (Tabla routine_user)
         Auth::user()->routines()->attach($routine->id);
 
-        // Reviso SI VIENEN EJERCICIOS 
         if ($request->has('exercises') && is_array($request->exercises)) {
             foreach ($request->exercises as $ex) {
                 $routine->exercises()->attach($ex['exercise_id'], [
@@ -50,76 +39,88 @@ class RoutineController extends Controller
             }
         }
 
-        // Cargo las relaciones antes de devolver el Resource para que no vaya vacío
         return new RoutineResource($routine->load('exercises'));
     }
 
-    // GET /api/routines (es público - Todas las rutinas del sistema)
-    public function index_public()
+    // POST api/my-routines - Suscribirse a una rutina existente
+    public function subscribe(Request $request)
     {
-        return RoutineResource::collection(Routine::all());
+        $request->validate([
+            'routine_id' => 'required|exists:routines,id'
+        ]);
+
+        $user = Auth::user();
+        
+        if ($user->routines()->where('routine_id', $request->routine_id)->exists()) {
+            return response()->json(['message' => 'Ya estas suscrito a esta rutina'], 409);
+        }
+
+        $user->routines()->attach($request->routine_id);
+
+        return response()->json(['message' => 'Te has suscrito a la rutina'], 201);
     }
 
-    // GET /api/routines/{id} (es público - Detalle de una rutina)
+    // GET api/routines - Todas las rutinas publicas
+    public function index_public()
+    {
+        return RoutineResource::collection(Routine::with('exercises')->get());
+    }
+
+    // GET api/routines/{id} - Detalle de una rutina
     public function show($id)
     {
         $routine = Routine::with('exercises')->findOrFail($id);
-
         return new RoutineResource($routine);
     }
 
-    // GET /api/routines/{id}/exercises (es público)
+    // GET api/routines/{id}/exercises
     public function exercises_list($id)
     {
         $routine = Routine::findOrFail($id);
-
         return response()->json($routine->exercises, 200);
     }
 
-    // DELETE /api/my-routines/{id} (token - Desvincular usuario de rutina)
-    // public function destroy($id)
-    // {
-    //     // Desasocio al usuario de la rutina en la tabla pivote routine_user
-    //     Auth::user()->routines()->detach($id);
-
-    //     return response()->json(['message' => 'Te has desuscrito de la rutina'], 200);
-    // }
-
-    // Edito el nombre o la descripción
-    public function update(Request $request, $id) {
-        $routine = Routine::findOrFail($id);
-        // Actualizo solo los campos que envíe en el JSON
-        $routine->update($request->only(['name', 'description']));
+    // DELETE api/my-routines/{id} - Desuscribirse de una rutina
+    public function destroy($id)
+    {
+        Auth::user()->routines()->detach($id);
+        return response()->json(['message' => 'Te has desuscrito de la rutina'], 200);
     }
 
-    // Borro la rutina de la base de datos
-    public function deleteFullRoutine($id) {
+    // PUT api/routines/{id} - Editar rutina
+    public function update(Request $request, $id)
+    {
+        $routine = Routine::findOrFail($id);
+        $routine->update($request->only(['name', 'description']));
+        return new RoutineResource($routine);
+    }
+
+    // DELETE api/routines/{id} - Borrar rutina completamente
+    public function deleteFullRoutine($id)
+    {
         $routine = Routine::findOrFail($id);
         $routine->delete();
         return response()->json(['message' => 'Rutina eliminada del sistema'], 200);
     }
 
-    public function addExercise(Request $request, $id) {
+    // POST api/routines/{id}/exercises - Anadir ejercicio a rutina
+    public function addExercise(Request $request, $id)
+    {
         $routine = Routine::findOrFail($id);
-
-        //El 'attach' es el que se encarga de rellenar la tabla pivot exercise_routine
-        $routine->exercise()-attach($request->exercise_id, [
+        $routine->exercises()->attach($request->exercise_id, [
             'target_reps' => $request->reps,
             'target_sets' => $request->sets,
             'rest_seconds' => $request->rest ?? 60,
             'sequence' => $request->sequence ?? 1
         ]);
-
-        return response()->json(['message' => 'Ejercicio añadido correctamente.'], 200);
-
+        return response()->json(['message' => 'Ejercicio anadido correctamente.'], 200);
     }
 
-    // Quito un ejercicio de la rutina
-    public function removeExercise($id, $e_id) {
+    // DELETE api/routines/{id}/exercises/{e_id} - Quitar ejercicio de rutina
+    public function removeExercise($id, $e_id)
+    {
         $routine = Routine::findOrFail($id);
-        // 'detach' borra la fila en la tabla intermedia
         $routine->exercises()->detach($e_id);
         return response()->json(['message' => 'Ejercicio quitado de la rutina.']);
     }
-
 }
